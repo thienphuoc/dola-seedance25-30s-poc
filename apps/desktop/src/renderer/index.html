@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="vi">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,34 +10,60 @@
   <aside class="sidebar">
     <div class="brand">
       <strong>Seedance Desktop Studio</strong>
-      <span>Multi-account POC</span>
+      <span>POC đa tài khoản</span>
     </div>
-    <button id="addAccount" class="primary">+ 添加 Dola 账号</button>
+    <button id="addAccount" class="primary">+ Thêm tài khoản Dola</button>
     <div id="accounts" class="accounts"></div>
     <div class="notice">
-      每个账号使用独立 Chromium Session。登录请直接在右侧 Dola 页面完成；本软件不收集 Google 密码或 TOTP。
+      Mỗi tài khoản dùng một phiên Chromium riêng. Vui lòng đăng nhập trực tiếp trên trang Dola bên phải; ứng dụng này không thu thập mật khẩu Google hay mã TOTP.
     </div>
   </aside>
 
   <main class="workspace">
     <header>
       <div>
-        <div id="activeName" class="active-name">尚未选择账号</div>
-        <div id="status" class="status">添加账号后即可在独立 Dola 会话中登录</div>
+        <div id="activeName" class="active-name">Chưa chọn tài khoản</div>
+        <div id="status" class="status">Thêm tài khoản để bắt đầu đăng nhập trong phiên Dola riêng</div>
       </div>
       <div class="header-actions">
-        <button id="reload" disabled>刷新 Dola</button>
-        <button id="clearSession" disabled>退出并清除本账号会话</button>
+        <button id="reload" disabled>Tải lại Dola</button>
+        <button id="importCookies" disabled>Nhập cookie…</button>
+        <button id="clearSession" disabled>Đăng xuất & xóa phiên tài khoản này</button>
       </div>
     </header>
 
     <section id="empty" class="empty">
-      <h1>多账号会话容器已就绪</h1>
-      <p>先添加一个账号。每个账号都有独立的 persistent partition，切换账号不会串 Cookie。</p>
+      <h1>Trình quản lý phiên đa tài khoản đã sẵn sàng</h1>
+      <p>Hãy thêm một tài khoản trước. Mỗi tài khoản có partition riêng, nên chuyển qua lại giữa các tài khoản sẽ không lẫn Cookie.</p>
     </section>
 
     <section id="webviews" class="webviews"></section>
   </main>
+
+  <div id="dialogBackdrop" class="dialog-backdrop" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <h2 id="dialogTitle">Thêm tài khoản Dola</h2>
+      <label for="accountNameInput">Đặt tên cho tài khoản Dola này:</label>
+      <input id="accountNameInput" type="text" maxlength="80" autocomplete="off" spellcheck="false" />
+      <div class="dialog-actions">
+        <button id="dialogCancel" type="button">Hủy</button>
+        <button id="dialogConfirm" type="button" class="primary">Thêm tài khoản</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="cookieDialogBackdrop" class="dialog-backdrop" hidden>
+    <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="cookieDialogTitle">
+      <h2 id="cookieDialogTitle">Nhập cookie đăng nhập Dola</h2>
+      <label for="cookieInput">Dán mảng cookie JSON (xuất từ trình duyệt). Chỉ nhận cookie thuộc dola.com.</label>
+      <textarea id="cookieInput" rows="10" spellcheck="false" placeholder='[{"domain":".dola.com","name":"…","value":"…"}]'></textarea>
+      <div class="dialog-hint">Cookie chỉ được ghi vào phiên local của tài khoản đang chọn, không lưu file hay gửi đi đâu.</div>
+      <div class="dialog-actions">
+        <button id="cookieCancel" type="button">Hủy</button>
+        <button id="cookieConfirm" type="button" class="primary">Nhập cookie</button>
+      </div>
+    </div>
+  </div>
 
   <script src="./app.js"></script>
 </body>

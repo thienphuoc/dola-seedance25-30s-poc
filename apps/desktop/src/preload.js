@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('seedanceDesktop', {
   addAccount: (name) => ipcRenderer.invoke('accounts:add', String(name || '')),
   removeAccount: (id, clearSession = false) => ipcRenderer.invoke('accounts:remove', String(id || ''), clearSession === true),
   clearAccountSession: (id) => ipcRenderer.invoke('accounts:clear-session', String(id || '')),
+  importCookies: (id, cookies) => ipcRenderer.invoke('accounts:import-cookies', String(id || ''), cookies),
   capacityReport: () => ipcRenderer.invoke('capacity:report'),
   recordCapacityJob: (payload) => ipcRenderer.invoke('capacity:record-job', payload),
   recordCapacityProviderState: (payload) => ipcRenderer.invoke('capacity:provider-state', payload),
