@@ -44,6 +44,25 @@
   - Static architecture is implemented.
   - G1 is not PASS until the extension is manually loaded in the user's current Chrome and the Inspector is visibly present on Dola.
 
+## 2026-09-14 — D2 baseline: Dola Web submit capture (Seedance 2.5 / 10s / T2V)
+
+- Gate: D2 (request side OBSERVED; generation itself failed — see evidence)
+- Status: OBSERVED / PARTIAL
+- Environment: Seedance Desktop Studio (Electron 44), Windows, user's own logged-in sessions via persistent partitions
+- Method: CDP Network observer attached to the account's own webview; sanitized JSONL in `captures/raw/` (gitignored); cookies/tokens/signing params auto-redacted
+- Result:
+  - Submit endpoint: `POST /chat/completion` with query `aid=495671`, `device_id`, `region=VN`, `sys_region=VN`, `samantha_web=1`, `version_code=20800`
+  - Video config travels in `chat_ability.ability_type = 17` and `chat_ability.ability_param` (JSON string): `{"model":"seedance_v2.5","duration":10,"input_box_content":{"user_input_content":"<prompt>","reply_message_format":"Generated video: %s"}}` — field source: `observed`
+  - Skill marker: `ext.input_skill = {"skill_id":"17","skill_type":17}` — `observed`
+  - User message body: `content_block[0].block_type = 10000` with `text_block.text = "Generated video: <prompt>"` — `observed`
+  - Bot `bot_id` is the public Dola assistant id — `observed`
+  - Aspect ratio has NO structured field in the submit envelope (`UNKNOWN`); bot restated "16:9" in text — `inferred`: UI ratio is carried via prompt text or server default
+  - Realtime transport: `wss://wss-normal-i18n.dola.com/ws/v2` push channel (heartbeat frames observed; data frames binary) plus IM polling loop: `im/chain/recent_conv` (cmd 3200), `im/conversation/info` (cmd 1110), `im/chain/single` (cmd 3100), `im/message/send_rate_limit` (cmd 2260) — `observed`
+  - Failure evidence: first generation attempt returned "Something went wrong. Please try again."; retry was acknowledged ("will use 4 credits and be ready in 5 minutes") while the account concurrently reported "0 video credits left today" — recorded, not retried further
+- Known limitations:
+  - Response bodies (including the completion stream) are not captured yet: Electron `webContents.debugger` does not emit `Network.loadingFinished`; submit body capture solved via `Network.getRequestPostData`
+- Next action: re-run when an account has video credits remaining; capture completion push, media URL, and map result lifecycle to D4
+
 ## 下一测试：G1 Current Chrome Extension
 
 目标：
