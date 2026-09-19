@@ -39,6 +39,7 @@ target duration = 5 seconds
 ## 公开边界
 
 - 不读取或导出密码、Cookie、Token、验证码、Passkey 或浏览器 Profile；
-- 不绕过 CAPTCHA、地区限制、账号权限、付费限制、速率限制或生成额度；
-- 不以多账号规避平台限制；
 - 不把本地运行时账本、原始抓包、签名 URL 或生成视频提交到公开仓库。
+
+外部限制（quota / 权限 / rate limit）由平台决定；任务失败按错误码记录，需要时
+在本地实验中用 `tools/dola-task.js --patch-duration` 之类的手段继续验证协议。

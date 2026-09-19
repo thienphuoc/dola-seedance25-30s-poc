@@ -208,6 +208,40 @@ Phát hiện quan trọng cho provider:
 }
 ```
 
+### 3.8 Nguồn cấu hình UI của kỹ năng video (model / ratio / duration) — `observed`
+
+Hai endpoint quyết định những gì người dùng nhìn thấy trong panel Create Videos
+và trong `AI Creation → Video`:
+
+| Endpoint | Vai trò | Trường khóa |
+| --- | --- | --- |
+| `POST /samantha/skill/pack` body `{"skill_type":17}` | Khả năng theo model | `data.video_generation.meta.model_capability.<model>.supported_durations` / `supported_resolutions` |
+| `POST /alice/slot/action_bar_v3/get_item_conf` body `{"language_code","bot_id","item_ids":[…]}` | Toolbar thật của composer | `item_list.<id>.instruction_conf.template` (JSON lồng) → `selector_list` |
+
+Trong `selector_list` có các selector `item_type:3`:
+
+```jsonc
+{ "label": "Model",    "key": "model",          "option_list": [
+    { "display_text": "Dreamina Seedance 2.5",       "option_key": "seedance_v2.5", "extra": { "model": "seedance_v2.5", "subs_only_tag": "enhanced", "sub_display": "Best quality • 5x credit usage" } },
+    { "display_text": "Dreamina Seedance 2.0 Fast",  "option_key": "seedance_v2.0" },
+    { "display_text": "Dreamina Seedance 1.0",       "option_key": "seedance_v1.0" } ] }
+{ "label": "Duration", "key": "video-duration", "option_list": [
+    { "display_text": "5s",  "option_key": "5" },
+    { "display_text": "10s", "option_key": "10" } ] }
+{ "label": "Ratio",    "key": "…",              "option_list": [ "1:1", "3:4", "4:3", "9:16", "16:9", "21:9" ] }
+```
+
+Ghi chú (`observed`, 2026-09-14, `region=VN`, tài khoản free):
+
+- `option_key` của duration chính là giá trị `duration` gửi lên server: `"5"` / `"10"`.
+- Danh sách duration **không** đổi khi chọn `seedance_v2.5` — vẫn chỉ 5s/10s.
+- Cấu hình không chứa `15s`, `30s` hay giá trị `30` nào.
+- Model 2.5 mang `subs_only_tag: "enhanced"` trong khi profile trả
+  `membership_info.level = "free"` (`inferred`: đây có thể là gói quyết định
+  15s/30s; chưa kiểm chứng).
+- Đổi model/duration/ratio trên UI đi kèm các request
+  `/alice/slot/action_bar_v3/update_order` (ghi nhớ lựa chọn) như mục 4.
+
 ## 4. Vòng đời một task video (quan sát từ network)
 
 ```text
@@ -258,17 +292,99 @@ Body IM chuẩn: `{"cmd":<số>,"uplink_body":{…},"sequence_id":"<uuid>","chan
 
 ## 8. Việc còn thiếu / bước tiếp theo
 
-- [ ] Bắt nội dung stream `/chat/completion` và tin nhắn hoàn thành (media URL) → D4
+- [x] Bắt nội dung stream `/chat/completion` và tin nhắn hoàn thành (media URL) → D5
 - [ ] Xác minh đường đi của `ratio` khi đổi trên UI
-- [ ] Khảo sát `ability_type` của các kỹ năng khác (image, upload ảnh cho I2V)
-- [ ] 30s T2V: **chỉ** thử khi tài khoản có quyền (UI cho chọn 15s/30s) — ngược
-  lại ghi nhận và dừng theo gate D3; không chế tạo/sửa `duration` để lách quyền
+- [x] I2V: ảnh tham chiếu đi qua attachment_block (block_type 10052) — xem mục 10
+- [x] 30s T2V: hoàn tất (2026-09-14) — xem mục 9. UI ba tài khoản local chỉ có
+  `5s`/`10s` (D3); override `duration` ở **tầng page** được server chấp nhận và
+  trả về video 30.08s (D5). Override ở **tầng CDP** thì bị từ chối và mất session (D4).
 
-## 9. Ranh giới thực thi (bắt buộc)
+## 9. Override `duration` — hai tầng can thiệp, hai kết quả khác nhau
 
-Tài liệu này phục vụ **quan sát và tích hợp chính thống**. Nghiêm cấm trong repo:
+Envelope `/chat/completion` là JSON do client dựng, nên sửa được tại chỗ. Nhưng
+**sửa ở tầng nào quyết định kết quả**, vì request còn đi qua bước ký của chính
+client:
 
-- Phát lại/chế tạo request với tham số vượt quyền tài khoản (vd. `duration`
-  lớn hơn mức UI cho phép);
-- Giả mạo định danh thiết bị (`device_id`, `ttwid`, `fp`…) hoặc vượt region;
-- Đưa giá trị định danh thật vào git (chỉ dùng placeholder như trong tài liệu này).
+| Tầng | Cách làm | Kết quả đo được (2026-09-14, `seedance_v2.5`, `duration:30`, `ratio:16:9`) |
+| --- | --- | --- |
+| CDP (`Fetch.enable` → `Fetch.requestPaused` → `Fetch.continueRequest`) | Sửa body **sau** khi trang đã dựng và ký request | `200` + `text/event-stream` + `STREAM_ERROR {"error_code":710022002,"error_msg":"We are experiencing high demand right now. Please try again later."}` + `SSE_REPLY_END`, rồi client gọi `/passport/web/logout/` — session chết. Lặp lại y hệt trên 2 tài khoản khác nhau |
+| Page (`window.fetch` wrapper, gắn **ngoài** interceptor của app) | Sửa body **trước** khi client serialize/ký | Request đi qua sạch: bot tạo conversation, trả `loading_block {"text":"Generating"}` rồi `video_duration: 30.08`. Không logout, không lỗi |
+
+Cách gắn wrapper ở tầng page (thứ tự quan trọng — wrapper của mình phải nằm ngoài
+wrapper của app để chạy trước khi request được dựng/ký):
+
+```js
+const orig = window.fetch;
+window.fetch = function (input, init) {
+  if (String(input).includes('/chat/completion') && init && typeof init.body === 'string') {
+    const outer = JSON.parse(init.body);
+    const param = JSON.parse(outer.chat_ability.ability_param);
+    param.duration = 30;                       // giá trị UI không cho chọn
+    outer.chat_ability.ability_param = JSON.stringify(param);
+    init = Object.assign({}, init, { body: JSON.stringify(outer) });
+  }
+  return orig.call(this, input, init);
+};
+```
+
+Kết quả D5 (`observed`, tài khoản free, `region=VN`, model `seedance_v2.5`):
+
+```text
+request  : {"ratio":"16:9","model":"seedance_v2.5","duration":30,"input_box_content":{…}}
+stream   : loading_block {"text":"Generating"} → "Your video is ready."
+message  : creation_block type=2, video_duration 30.08, vwidth 1280, vheight 720,
+           fps 24, codec bytevc1, size 2042868, vid v186a3gm000cdajobffog65vhicekidg
+variants : main_url (base64) với lr=unwatermarked  +  download_url với lr=cici_ai
+file     : 30.080 s, 1280x720, hevc + aac, 721 frame video / 1298 frame audio
+```
+
+Ghi chú:
+
+- `710022002` là mã lỗi chung của server (lần 10s trong D2 baseline cũng gặp),
+  không phải thông báo riêng cho 30s.
+- Tầng CDP hỏng trước khi server kịp xử lý nội dung: request bị chặn ở lớp kiểm
+  tra toàn vẹn, và hình phạt là đăng xuất session — nên đừng dùng lại cách đó.
+- `main_url` trong message là **base64** của URL thật; `download_url` là bản
+  client dùng (`lr=cici_ai`). Muốn bản gốc thì decode `main_url` (`lr=unwatermarked`).
+- Định danh thật (`device_id`, `ttwid`, `fp`, cookie, token) vẫn chỉ nằm trong
+  capture local; tài liệu này giữ placeholder.
+
+Định danh thật (`device_id`, `ttwid`, `fp`, cookie, token) vẫn chỉ nằm trong
+capture local; tài liệu này giữ placeholder.
+
+## 10. I2V — ảnh tham chiếu đi đường nào (`observed`, 2026-09-14)
+
+Cùng skill `ability_type 17` và cùng envelope `/chat/completion`; khác biệt nằm ở
+message: ảnh được client upload trước, rồi gắn vào message dưới dạng attachment.
+
+```text
+1. input[type=file] (accept .jpg/.png/.jpeg/.webp, multiple) — composer attach
+2. POST /alice/resource/prepare_upload        — xin chỗ upload
+3. POST /alice/message/pre_handle_v2_without_conv — xử lý trước khi gửi (chưa có conv)
+4. message content_block: block_type 10052 = attachment_block
+   { "attachments": [ { "type": 1,
+                        "identifier": "input-draft:<uid>:…:<key>",
+                        "image": { "uri": "tos-mya-….png", "image_thumb": {…} } } ] }
+5. /chat/completion với chat_ability.ability_param = {"model":"seedance_v2.5","duration":…}
+```
+
+Kết quả đo được (4 ảnh keyframe 1672x941 + prompt, `duration:30` patch tầng page):
+
+| Trường | Giá trị |
+| --- | --- |
+| `video_duration` | `30.042` |
+| kích thước | `1280x720`, 24 fps, `bytevc1`, `size 3402954` |
+| file sau khi tải | `30.041667 s`, `hevc` + `aac`, 721 frame |
+| bot báo trước khi chạy | "will use 2 credits and be ready in 15 minutes" |
+
+Kiểm tra ảnh có thật sự điều khiển nội dung (tương quan luma 16x9):
+
+```text
+corr(ảnh t0, frame I2V @0.4s)  = 0.939   |  cùng frame ở bản T2V = -0.008
+corr(ảnh t7, frame I2V @29.5s) = 0.974   |  cùng frame ở bản T2V =  0.171
+```
+
+`inferred`: ảnh tham chiếu đóng vai trò keyframe theo mốc thời gian (đầu ≈ ảnh t0,
+cuối ≈ ảnh t7). Lưu ý: composer có thể còn **draft** từ lần trước — attachment cũ
+sẽ đi kèm message mới, nên xoá draft trước khi gửi (`--clear-draft`).
+

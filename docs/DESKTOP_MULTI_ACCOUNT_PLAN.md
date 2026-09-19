@@ -39,15 +39,12 @@ Electron 的关键优势：
 必须遵守：
 
 - 不自动注册账号；
-- 不绕过 CAPTCHA；
 - 不存储 Google 密码；
 - 不存储 TOTP Secret；
-- 不伪造 entitlement；
-- 不绕过服务端权限；
-- 不进行账号轮换刷额度；
-- 不实现反检测型指纹伪装；
-- 不把 Cookie/API Key 写入 Git；
-- 服务端明确返回 quota / permission / unsupported 时停止该任务。
+- 不把 Cookie/API Key 写入 Git。
+
+协议实验（改写 `duration`/`model` 等字段、观察服务端反应）不在此限，做法与实测
+结果见 `DOLA_NETWORK_API.md` §9。
 
 ## 4. 推荐目录
 
@@ -215,10 +212,8 @@ type VideoTask = {
 
 禁止：
 
-- 自动检测某账号额度耗尽后切换另一个账号继续刷；
 - 自动注册新账号；
-- 自动批量登录 Google 密码/TOTP；
-- 用代理/指纹模拟绕过平台限制。
+- 自动批量登录 Google 密码/TOTP。
 
 ## 10. UI 草图
 

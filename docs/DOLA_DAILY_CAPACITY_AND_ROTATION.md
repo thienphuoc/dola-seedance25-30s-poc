@@ -29,9 +29,9 @@ delivery_result=PASS
 | `available` | 按正常顺序继续 |
 | `daily_complete` | 明确服务端达到当日上限；允许继续下一个正常账号 |
 | `needs_login` | 等待账号所有者登录，可跳过但不视为额度完成 |
-| `restricted` / `rate_limited` | 停止轮询，人工复核，不得换号规避 |
+| `restricted` / `rate_limited` | 停止轮询，人工复核 |
 
-默认单 Worker 顺序为 `D01 -> D02`。只有明确的 `daily_complete` 才能触发自动
+默认单 Worker 顺序为 `D01 -> D02`。明确的 `daily_complete` 可以触发自动
 切换；任务一旦绑定账号，就不能中途换号。容量在获得明确服务端完成证据前
 保持 `UNKNOWN`，同时展示每个账号的成功、失败和 clean delivery 数量。
 

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bàn điều khiển Dola</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Bàn điều khiển Dola</h1>
+      <p class="sub">Dán cookie để nhận tài khoản, chọn ảnh mẫu, chọn số giây, bấm Gửi. Video xong sẽ hiện ngay bên dưới.</p>
+    </div>
+    <div id="connection" class="connection">Đang kết nối…</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1. Tài khoản</h2>
+      <div class="row">
+        <label for="accountSelect">Tài khoản đang dùng</label>
+        <div class="row-inline">
+          <select id="accountSelect"></select>
+          <button id="checkAccount" type="button">Kiểm tra đăng nhập</button>
+          <button id="enableDuration" type="button" class="primary">Bật lựa chọn 30 giây</button>
+          <button id="removeAccount" type="button" class="ghost">Xoá tài khoản</button>
+        </div>
+      </div>
+      <div id="accountStatus" class="hint">Chưa chọn tài khoản.</div>
+
+      <details class="paste">
+        <summary>Dán cookie để nhận tài khoản mới</summary>
+        <div class="row">
+          <label for="accountName">Tên gợi nhớ (không bắt buộc)</label>
+          <input id="accountName" type="text" placeholder="Ví dụ: Dola 5" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="row">
+          <label for="cookieInput">Mảng cookie JSON của dola.com</label>
+          <textarea id="cookieInput" rows="7" spellcheck="false" placeholder='[{"domain":".dola.com","name":"sessionid_ss","value":"…"}]'></textarea>
+        </div>
+        <div class="row-inline">
+          <button id="addAccount" type="button" class="primary">Nhận tài khoản</button>
+          <span class="hint">Cookie chỉ ghi vào phiên trên máy này, không gửi đi đâu khác.</span>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>2. Nội dung</h2>
+      <textarea id="prompt" rows="10" spellcheck="false" placeholder="Dán đoạn mô tả cảnh phim vào đây…"></textarea>
+      <div id="promptCount" class="hint">0 ký tự</div>
+    </section>
+
+    <section class="card">
+      <h2>3. Ảnh mẫu (không bắt buộc)</h2>
+      <div id="dropZone" class="drop">
+        <strong>Kéo ảnh vào đây</strong>
+        <span>hoặc</span>
+        <button id="pickImages" type="button">Chọn ảnh</button>
+        <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
+        <span class="hint">Nhận png, jpg, webp. Tối đa 6 ảnh, mỗi ảnh dưới 12MB.</span>
+      </div>
+      <div id="imageList" class="thumbs"></div>
+    </section>
+
+    <section class="card">
+      <h2>4. Tuỳ chọn</h2>
+      <div class="grid">
+        <div class="row">
+          <label for="duration">Số giây</label>
+          <select id="duration"></select>
+        </div>
+        <div class="row">
+          <label for="ratio">Khung hình</label>
+          <select id="ratio"></select>
+        </div>
+        <div class="row">
+          <label for="model">Mô hình</label>
+          <select id="model"></select>
+        </div>
+      </div>
+      <div class="row-inline send-row">
+        <button id="send" type="button" class="primary big">Gửi</button>
+        <span id="sendHint" class="hint"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>5. Việc đã làm</h2>
+      <div id="jobs" class="jobs"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="./app.js"></script>
+</body>
+</html>

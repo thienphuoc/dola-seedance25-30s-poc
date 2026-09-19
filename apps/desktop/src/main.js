@@ -1,12 +1,15 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createDailyCapacityStore } = require('./shared/daily-capacity');
+const { createJobRunner } = require('./job-runner');
+const { createWebServer } = require('./web-server');
 
 let mainWindow = null;
+let jobRunner = null;
 
 function dataPath() {
   return path.join(app.getPath('userData'), 'accounts.json');
@@ -313,6 +316,53 @@ function deleteAccount(accountId) {
   return account || null;
 }
 
+// --- cầu nối để bàn điều khiển web điều khiển khung Dola có sẵn trong ứng dụng ---
+const pendingWebviewRequests = new Map();
+
+function activateAccountView(accountId) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  mainWindow.webContents.send('desktop:activate-account', String(accountId || ''));
+  return true;
+}
+
+function refreshAccountViews() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send('desktop:refresh-accounts');
+}
+
+function resolveWebviewId(accountId, timeoutMs = 6000) {
+  return new Promise((resolve) => {
+    if (!mainWindow || mainWindow.isDestroyed()) { resolve(null); return; }
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      if (pendingWebviewRequests.has(requestId)) {
+        pendingWebviewRequests.delete(requestId);
+        resolve(null);
+      }
+    }, timeoutMs);
+    pendingWebviewRequests.set(requestId, (webContentsId) => {
+      clearTimeout(timer);
+      resolve(webContentsId);
+    });
+    mainWindow.webContents.send('desktop:resolve-webview', { accountId: String(accountId || ''), requestId });
+  });
+}
+
+// Ảnh từ popup được gửi lên dạng data URL (Electron mới không còn File.path), lưu ra đĩa rồi lấy đường dẫn.
+function normalizeImagePayload(list) {
+  if (!Array.isArray(list)) return [];
+  const paths = [];
+  for (const item of list.slice(0, 6)) {
+    if (typeof item === 'string' && item) { paths.push(item); continue; }
+    if (item && typeof item.dataUrl === 'string') {
+      try {
+        paths.push(jobRunner.saveUpload(item.name || 'image', item.dataUrl).file);
+      } catch (_) { /* bỏ ảnh lỗi */ }
+    }
+  }
+  return paths;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -344,12 +394,88 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('accounts:clear-session', (_event, id) => clearAccountSession(id));
   ipcMain.handle('accounts:import-cookies', (_event, id, cookies) => importAccountCookies(id, cookies));
+  ipcMain.handle('accounts:enable-duration', (_event, id) => jobRunner.enableDurationForAccount(id));
+
+  // Popup "Tạo video" trong studio: cùng bộ chạy việc với bàn điều khiển web.
+  ipcMain.handle('video:defaults', () => jobRunner.defaults);
+  ipcMain.handle('video:conversations', (_event, accountId) => jobRunner.listConversations(String(accountId || '')));
+  ipcMain.handle('video:get-conversation', async (_event, payload) => {
+    return await jobRunner.getVideosFromConversation(payload && payload.accountId, { title: payload && payload.title, href: payload && payload.href });
+  });
+  ipcMain.handle('video:create', async (_event, payload) => {
+    const job = await jobRunner.startJob({
+      accountId: payload && payload.accountId,
+      prompt: payload && payload.prompt,
+      duration: Number(payload && payload.duration),
+      ratio: payload && payload.ratio,
+      model: payload && payload.model,
+      images: normalizeImagePayload(payload && payload.images)
+    });
+    return jobRunner.listJobs().find((item) => item.id === job.id) || null;
+  });
+  ipcMain.handle('video:jobs', (_event, accountId) => {
+    const all = jobRunner.listJobs();
+    return accountId ? all.filter((item) => item.accountId === accountId) : all.slice(0, 10);
+  });
+  ipcMain.handle('video:cancel', (_event, jobId) => jobRunner.cancelJob(jobId));
+  ipcMain.handle('video:cancel-account', (_event, accountId) => jobRunner.cancelActiveJobs(String(accountId || '')));
+  ipcMain.handle('video:open-outputs', async (_event, jobId) => {
+    const job = jobRunner.listJobs().find((item) => item.id === String(jobId || ''));
+    const file = job && job.media && job.media.unwatermarked && job.media.unwatermarked.file;
+    if (file) {
+      shell.showItemInFolder(file);
+      return { ok: true, file };
+    }
+    shell.openPath(path.join(repoRoot, 'outputs'));
+    return { ok: true, file: path.join(repoRoot, 'outputs') };
+  });
   ipcMain.handle('capacity:report', () => createDailyCapacityStore(capacityPath()).report(loadAccounts()));
   ipcMain.handle('capacity:record-job', (_event, payload) => createDailyCapacityStore(capacityPath()).recordJob(payload || {}));
   ipcMain.handle('capacity:provider-state', (_event, payload) => createDailyCapacityStore(capacityPath()).recordProviderState(payload || {}));
   ipcMain.handle('capacity:next-account', (_event, afterAccountId) => {
     return createDailyCapacityStore(capacityPath()).nextAccount(loadAccounts(), { afterAccountId: String(afterAccountId || '') || null });
   });
+
+  ipcMain.on('desktop:resolve-webview-result', (_event, payload) => {
+    const requestId = payload && payload.requestId;
+    const handler = pendingWebviewRequests.get(requestId);
+    if (!handler) return;
+    pendingWebviewRequests.delete(requestId);
+    handler(payload.webContentsId === null || payload.webContentsId === undefined ? null : Number(payload.webContentsId));
+  });
+
+  // Bàn điều khiển web: nhận lệnh qua HTTP local rồi điều khiển khung Dola có sẵn.
+  const repoRoot = path.join(__dirname, '..', '..', '..');
+  jobRunner = createJobRunner({
+    userDataDir: app.getPath('userData'),
+    outputsDir: path.join(repoRoot, 'outputs'),
+    uploadsDir: path.join(app.getPath('userData'), 'client', 'uploads'),
+    jobsFile: path.join(app.getPath('userData'), 'client', 'jobs.json'),
+    captureDir: capturesDir,
+    getAccounts: loadAccounts,
+    activateAccountView,
+    refreshAccountViews,
+    resolveWebviewId
+  });
+  const webServer = createWebServer({
+    rootDir: repoRoot,
+    webDir: path.join(__dirname, '..', 'web'),
+    outputsDir: path.join(repoRoot, 'outputs'),
+    runner: jobRunner,
+    getAccounts: loadAccounts,
+    addAccount: async (name, cookies) => {
+      const accounts = loadAccounts();
+      const target = createAccount(name || `Dola ${accounts.length + 1}`);
+      const result = await importAccountCookies(target.id, cookies);
+      if (!result.imported) throw new Error('Không nhận được cookie dola.com nào');
+      return target;
+    },
+    removeAccount: (id) => deleteAccount(id),
+    onAccountsChanged: refreshAccountViews
+  });
+  webServer.start()
+    .then((url) => console.log(`Bàn điều khiển web: ${url}`))
+    .catch((error) => console.error('Không mở được bàn điều khiển web:', error));
 
   createWindow();
 

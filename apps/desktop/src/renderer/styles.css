@@ -112,3 +112,78 @@ webview { width: 100%; height: 100%; border: 0; background: #fff; }
 }
 .dialog textarea:focus { border-color: #5478f2; }
 .dialog-hint { color: #97a4bf; font-size: 12px; line-height: 1.5; }
+
+/* Popup tạo video */
+.composer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 6px 0 12px;
+}
+
+.composer-field label { display: block; margin-bottom: 4px; }
+
+.composer-attach { margin-bottom: 8px; }
+
+.composer-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.composer-thumb {
+  position: relative;
+  width: 96px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.composer-thumb img { display: block; width: 100%; height: 62px; object-fit: cover; }
+.composer-thumb span {
+  display: block;
+  padding: 3px 6px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.composer-thumb button {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  padding: 0 6px;
+  line-height: 18px;
+  border-radius: 999px;
+}
+
+.composer-result {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.composer-result strong { display: block; margin-bottom: 4px; }
+
+.composer-sep { border: none; border-top: 1px solid var(--line); margin: 14px 0 10px; }
+
+h3 { margin: 0 0 8px; font-size: 14px; }
+
+.composer-taskbar { margin-bottom: 8px; }
+.composer-jobs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.composer-job {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.composer-job .chip { font-size: 11px; padding: 1px 7px; }
+.composer-job .job-text { flex: 1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
