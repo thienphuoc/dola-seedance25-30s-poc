@@ -158,14 +158,21 @@ function renderJobs() {
   }
 }
 
+const JOB_ACTIVE = ['queued', 'running', 'submitting', 'accepted', 'generating'];
+
+// Việc đang chạy chỉ chặn chính tài khoản của nó. Tài khoản khác vẫn gửi được vì mỗi
+// tài khoản có khung Dola và phiên riêng.
 function activeJob() {
-  return state.jobs.find((job) => ['queued', 'running', 'submitting', 'accepted', 'generating'].includes(job.status)) || null;
+  const accountId = el('accountSelect').value;
+  return state.jobs.find((job) => job.accountId === accountId && JOB_ACTIVE.includes(job.status)) || null;
 }
 
 function renderSendState() {
-  const running = Boolean(activeJob());
-  el('send').disabled = running;
-  el('sendHint').textContent = running ? 'Đang có việc chạy, xong mới gửi tiếp.' : '';
+  const running = activeJob();
+  el('send').disabled = Boolean(running);
+  el('sendHint').textContent = running
+    ? `Tài khoản này đang có việc chạy (${running.id}). Đổi sang tài khoản khác để gửi tiếp.`
+    : '';
 }
 
 async function refresh() {
@@ -367,6 +374,7 @@ function wire() {
     localStorage.setItem('dolaAccountId', el('accountSelect').value);
     el('removeAccount').disabled = !el('accountSelect').value;
     el('accountStatus').textContent = 'Chưa kiểm tra tài khoản này.';
+    renderSendState();
   });
   el('addAccount').addEventListener('click', () => { addAccount(); });
   el('checkAccount').addEventListener('click', () => { checkAccount(); });
@@ -400,7 +408,6 @@ async function boot() {
   clearInterval(state.poll);
   state.poll = setInterval(async () => {
     await refresh();
-    if (activeJob()) el('sendHint').textContent = 'Đang có việc chạy, xong mới gửi tiếp.';
   }, 5000);
 }
 

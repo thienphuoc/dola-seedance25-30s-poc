@@ -179,6 +179,37 @@ function createJobRunner(options) {
   const activeJobs = new Map();
   let jobs = loadJobs();
 
+  // Việc đang chạy tách theo tài khoản. Mỗi tài khoản có khung Dola, Chromium partition
+  // và cửa sổ ẩn riêng, nên hai tài khoản chạy song song được — chỉ chặn trùng trên
+  // cùng một tài khoản, vì chung một trang Dola và chung bộ đệm hội thoại.
+  // Việc đã bấm dừng không giữ chỗ nữa: vòng lặp của nó tự thoát ở lần đánh thức kế tiếp,
+  // nhưng người dùng phải gửi được việc mới ngay chứ không phải chờ.
+  function activeJobForAccount(accountId) {
+    const id = String(accountId || '');
+    for (const controller of activeJobs.values()) {
+      if (controller.job.canceled) continue;
+      if (String(controller.job.accountId) === id) return controller.job;
+    }
+    return null;
+  }
+
+  // Đọc hội thoại (lấy video cũ, cứu kết quả) cũng là một luồng riêng của tài khoản:
+  // nó xoá và nạp lại chainBodies, nên không được chạy chồng lên việc đang theo dõi.
+  const conversationOps = new Set();
+
+  function beginConversationOp(account) {
+    const id = String(account.id);
+    const runningJob = activeJobForAccount(id);
+    if (runningJob) {
+      throw new Error(`${account.name} đang chạy việc ${runningJob.id} nên chưa đọc hội thoại được — chờ việc đó xong, hoặc làm trên tài khoản khác.`);
+    }
+    if (conversationOps.has(id)) {
+      throw new Error(`${account.name} đang đọc hội thoại rồi, chờ một chút.`);
+    }
+    conversationOps.add(id);
+    return () => { conversationOps.delete(id); };
+  }
+
   for (const dir of [outputsDir, uploadsDir, captureDir, path.dirname(jobsFile)]) {
     try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* ignore */ }
   }
@@ -974,7 +1005,8 @@ function createJobRunner(options) {
   async function startJob(spec) {
     const account = findAccount(spec.accountId);
     if (!account) throw new Error('Tài khoản không tồn tại');
-    if (activeJobs.size > 0) throw new Error('Đang có việc chạy, chờ việc hiện tại xong đã');
+    const busy = activeJobForAccount(account.id);
+    if (busy) throw new Error(`${account.name} đang có việc chạy, chờ việc hiện tại xong đã`);
     const job = {
       id: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
       createdAt: new Date().toISOString(),
@@ -1096,6 +1128,10 @@ function createJobRunner(options) {
     while (Date.now() < deadline) {
       if (job.canceled) { setStatus(job, 'canceled', 'Đã dừng theo yêu cầu'); return; }
       await sleep(12000);
+      // Kiểm tra lại ngay sau khi thức: từ đây trở xuống là phần có ghi vào bộ đệm hội
+      // thoại của tài khoản, mà việc đã dừng thì không được chạm vào nữa — tài khoản đó
+      // có thể đã được giao cho việc mới.
+      if (job.canceled) { setStatus(job, 'canceled', 'Đã dừng theo yêu cầu'); return; }
       pollRounds += 1;
       // Cứ ~2 phút mở lại hội thoại một lần: khung Dola nhận kết quả qua kênh đẩy nên
       // có thể không tự hỏi lại danh sách tin nhắn. Phải mở ĐÚNG hội thoại của việc,
@@ -1272,6 +1308,15 @@ function createJobRunner(options) {
   async function getVideosFromConversation(accountId, options) {
     const account = findAccount(accountId);
     if (!account) throw new Error('Không thấy tài khoản');
+    const endOp = beginConversationOp(account);
+    try {
+      return await readConversationMedia(account, options);
+    } finally {
+      endOp();
+    }
+  }
+
+  async function readConversationMedia(account, options) {
     const wc = await resolveTarget(account);
     await pageHelpers(wc);
     const login = await resolveLogin(wc);
@@ -1365,6 +1410,15 @@ function createJobRunner(options) {
     if (!job) throw new Error('Không thấy việc này');
     const account = findAccount(job.accountId);
     if (!account) throw new Error('Không thấy tài khoản của việc này');
+    const endOp = beginConversationOp(account);
+    try {
+      return await recoverJobMedia(job, account, options);
+    } finally {
+      endOp();
+    }
+  }
+
+  async function recoverJobMedia(job, account, options) {
     const wc = await resolveTarget(account);
     await pageHelpers(wc);
     await waitForPage(wc);

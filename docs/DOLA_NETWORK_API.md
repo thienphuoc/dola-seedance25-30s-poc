@@ -242,6 +242,33 @@ Ghi chú (`observed`, 2026-09-14, `region=VN`, tài khoản free):
 - Đổi model/duration/ratio trên UI đi kèm các request
   `/alice/slot/action_bar_v3/update_order` (ghi nhớ lựa chọn) như mục 4.
 
+### 3.9 Độ phân giải: khóa cứng ở 720p, không có bản Full HD
+
+Kiểm tra ngày 2026-09-19 trên 6 tài khoản và 40 file đã tải về:
+
+| Nguồn | Giá trị | Ý nghĩa |
+| --- | --- | --- |
+| `skill/pack` → `model_capability.<model>.supported_resolutions` | `["720p"]` (51/51 lần bắt được) | Trần độ phân giải do máy chủ công bố; không model nào khai 1080p |
+| `ability_param` gửi lên | `ratio, model, duration, input_box_content` | **Không có trường độ phân giải / chất lượng nào** — không thể yêu cầu 1080p qua API |
+| `play_addr.video_list` | đúng **một** biến thể `video_1` | Chỉ có một bản trên CDN, không có bản 720p/1080p để chọn |
+| `video_list.video_1` | `vwidth: 1280`, `vheight: 720`, `fps: 24`, `codec_type: bytevc1` | Kích thước pixel thật |
+| `video_list.video_1.definition` | `"1080p"` | **Nhãn gear, không phải pixel.** `gear_des_key = 0:MP4\|1:normal\|2:h265_hvc1\|4:1080p\|5:normal` — đây là tên bậc trong thang rate-gear của ByteDance, bậc tên "1080p" ứng với 1280x720 ở sản phẩm này |
+| File tải về (40/40) | `1280x720`, `hevc`, 24 fps, ~0.8–1.5 Mbps | Khớp với `vwidth`/`vheight` |
+
+Kết luận: **không tồn tại file Full HD (1920x1080) từ nguồn.** Model render ở 720p, CDN chỉ có
+đúng bản đó. Muốn có file 1920x1080 thì phải nâng cấp cục bộ bằng ffmpeg — file ra đúng
+1920x1080 nhưng chi tiết không thể vượt quá nguồn 720p.
+
+```bash
+# H.264, tương thích rộng nhất (30 giây ≈ 29 MB)
+ffmpeg -i in.mp4 -vf "scale=1920:1080:flags=lanczos,unsharp=5:5:0.6:5:5:0.0" \
+  -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -c:a copy -movflags +faststart out-1080p.mp4
+
+# HEVC, nhẹ hơn nhiều (30 giây ≈ 12 MB), hợp với bản dựng giữ file gốc
+ffmpeg -i in.mp4 -vf "scale=1920:1080:flags=lanczos,unsharp=5:5:0.6:5:5:0.0" \
+  -c:v libx265 -preset medium -crf 22 -tag:v hvc1 -pix_fmt yuv420p -c:a copy -movflags +faststart out-1080p-hevc.mp4
+```
+
 ## 4. Vòng đời một task video (quan sát từ network)
 
 ```text

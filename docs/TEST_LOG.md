@@ -197,6 +197,50 @@
   - Giao diện báo "Your video is ready." nhưng bộ đọc dữ liệu hội thoại trong trang không bắt được khối `creation_block` (bản tin cập nhật qua kênh đẩy), nên file được lấy bằng công cụ dòng lệnh đọc thẳng `im/chain/single` — việc đã tốn credit, không phát sinh thêm. Đây là điểm cần bịt tiếp: đọc khối video từ DOM/kênh đẩy thay vì chỉ đọc lại danh sách tin nhắn.
 - So sánh giá credit cùng ngày: 15 giây + 4 ảnh + 2.5 = 12 credit (bị từ chối khi chỉ còn 4); 15 giây + 4 ảnh + 2.0 = 3 credit; 30 giây + 4 ảnh + 2.5 = được nhận trên Dola 4.
 
+## 2026-09-19 — D10: sửa bố cục popup "Tạo video" (trần chiều cao, hai cột)
+
+- Gate: D10 (kiểm tra giao diện, không tốn credit — không gửi việc nào)
+- Status: PASS
+- Vấn đề: popup cao dần theo nội dung (mô tả dài + danh sách việc), hàng nút `Đóng / Mở thư mục video / Gửi` bị đẩy khỏi màn hình, không bấm được.
+- Cách sửa:
+  - `.dialog-composer`: `width: min(1180px, 94vw)`, `max-height: calc(100vh - 32px)`, `display:flex` + `overflow:hidden`.
+  - Nội dung gói trong `.composer-body` (`flex:1; min-height:0; overflow:auto`), chia **hai cột** (mô tả + số giây/khung hình/mô hình + ảnh | lấy video hội thoại cũ + việc đang chạy + danh sách việc + kết quả). Dưới 900px tự dồn về một cột.
+  - `.dialog-actions` nằm ngoài vùng cuộn, luôn là chân trang cố định.
+  - `.composer-jobs` (240px) và `.composer-thumbs` (200px) tự cuộn thay vì kéo dài popup.
+  - Thêm `.row-inline` (trước đây chưa hề có luật CSS nên ô chọn hội thoại co lại còn ~70px) và tạo dáng `.dialog select` theo nền tối.
+  - `.composer-result` đổi từ nền sáng `#f7f9fc` sang `#0d1426`: chữ trong khung kết quả trước đây gần như trắng trên trắng.
+  - Trạng thái việc bỏ lặp nhãn ("Xong: Xong: 30.04 giây" → "Xong: 30.04 giây").
+- Cách đo: thêm `SEEDANCE_DEBUG_PORT=9333` cho `main.js`, rồi đo bằng CDP (`user-data/shot-composer.cjs`, `user-data/stress-composer.cjs`, `user-data/check-composer-flow.cjs`).
+- Kết quả đo (`observed`):
+
+  | Khung nhìn | Hộp thoại | Chân trang | `Gửi` bấm được |
+  |---|---|---|---|
+  | 1427x859, 24 việc + mô tả 24 dòng | 1180x700 (trần 827) | trong màn hình | có (`elementFromPoint` = `composerSend`) |
+  | 900x640, một cột | 846x608 | trong màn hình | có |
+  | 1024x520 | 963x488 | trong màn hình | có |
+
+- Luồng vẫn chạy đúng sau khi đổi bố cục: chọn Dola 6 → mở popup → `Nạp danh sách` trả về 5 hội thoại (`Main chat`, `视频生成`, `Mở đầu phim Lạc Long Quân`, `Mở đầu phim Lạc Long Quân Âu Cơ`, `Generated Video`), `Gửi` bật, danh sách việc hiện đúng 5 dòng thật kèm nút `Mở thư mục`.
+- Ảnh đối chiếu: `user-data/composer-final4.png` (thật, Dola 6), `user-data/composer-stress.png`, `user-data/composer-stress-small.png`, `user-data/composer-stress-flat.png` (đã gitignore).
+
+## 2026-09-19 — D11: độ phân giải trả về — 720p, không có bản Full HD
+
+- Gate: D11 (đo độ phân giải, không tốn credit)
+- Status: PASS (đã xác định được trần độ phân giải)
+- Câu hỏi: bản trả về có phải Full HD không, có lấy được file 1080p không?
+- Kết quả (`observed`):
+  - `ffprobe` toàn bộ 40 file trong `outputs/`: **40/40 là `1280x720`**, `hevc`, 24 fps, bitrate 0.39–1.47 Mbps. Không có file nào lớn hơn.
+  - `skill/pack` trên 6 tài khoản: `supported_resolutions: ["720p"]`, 51/51 lần bắt được trong `captures/raw` đều là `["720p"]`.
+  - `ability_param` gửi lên chỉ có `ratio, model, duration, input_box_content` — **không có trường độ phân giải**, nên không thể yêu cầu 1080p bằng API.
+  - `play_addr.video_list` chỉ có **một** biến thể `video_1`, với `vwidth: 1280`, `vheight: 720`. Không có bản thứ hai để chọn.
+  - `video_1.definition = "1080p"` là **nhãn gear**, không phải pixel: `gear_des_key = 0:MP4|1:normal|2:h265_hvc1|4:1080p|5:normal` (thang rate-gear của ByteDance; bậc tên "1080p" ứng với 1280x720 ở sản phẩm này).
+- Kết luận: nguồn render là 720p, CDN chỉ có đúng bản đó. **Không tồn tại file Full HD từ nguồn.**
+- Đã làm bản nâng cấp cục bộ để đối chiếu (từ `dola-4-30s-2026-09-19T03-07-52-unwatermarked.mp4`, 4.97 MB):
+  - `outputs/dola-4-30s-2026-09-19-1080p.mp4` — H.264, `1920x1080`, 24 fps, 7.60 Mbps, **29.0 MB**
+  - `outputs/dola-4-30s-2026-09-19-1080p-hevc.mp4` — HEVC, `1920x1080`, 24 fps, 3.09 Mbps, **12.1 MB**
+  - Lọc: `scale=1920:1080:flags=lanczos,unsharp=5:5:0.6:5:5:0.0`. Khung hình 1:1 xem sạch, không thấy vệt artifact.
+- Ghi chú: nâng cấp cục bộ ra đúng khung 1920x1080 nhưng **chi tiết không thể vượt quá nguồn 720p** — dùng khi nền tảng bắt buộc khung 1080p, không phải để lấy thêm chi tiết.
+- Công cụ đo: `user-data/inspect-video-list.cjs`, `user-data/live-capability.cjs`, `user-data/grep-ability-param.cjs` (đã gitignore).
+
 ## 下一测试：G1 Current Chrome Extension
 
 目标：

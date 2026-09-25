@@ -11,6 +11,11 @@ const { createWebServer } = require('./web-server');
 let mainWindow = null;
 let jobRunner = null;
 
+// Gắn cổng gỡ lỗi khi cần soi giao diện: SEEDANCE_DEBUG_PORT=9333 npm start
+if (process.env.SEEDANCE_DEBUG_PORT) {
+  app.commandLine.appendSwitch('remote-debugging-port', String(process.env.SEEDANCE_DEBUG_PORT));
+}
+
 function dataPath() {
   return path.join(app.getPath('userData'), 'accounts.json');
 }

@@ -68,54 +68,60 @@
   </div>
 
   <div id="composerBackdrop" class="dialog-backdrop" hidden>
-    <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="composerTitle">
+    <div class="dialog dialog-composer" role="dialog" aria-modal="true" aria-labelledby="composerTitle">
       <h2 id="composerTitle">Tạo video</h2>
-      <div id="composerAccount" class="dialog-hint">Chưa chọn tài khoản.</div>
+      <div class="composer-body">
+        <div class="composer-col">
+          <div id="composerAccount" class="dialog-hint">Chưa chọn tài khoản.</div>
 
-      <label for="composerPrompt">Đoạn mô tả</label>
-      <textarea id="composerPrompt" rows="8" spellcheck="false" placeholder="Dán đoạn mô tả cảnh phim vào đây…"></textarea>
+          <label for="composerPrompt">Đoạn mô tả</label>
+          <textarea id="composerPrompt" rows="10" spellcheck="false" placeholder="Dán đoạn mô tả cảnh phim vào đây…"></textarea>
 
-      <div class="composer-grid">
-        <div class="composer-field">
-          <label for="composerDuration">Số giây</label>
-          <select id="composerDuration"></select>
+          <div class="composer-grid">
+            <div class="composer-field">
+              <label for="composerDuration">Số giây</label>
+              <select id="composerDuration"></select>
+            </div>
+            <div class="composer-field">
+              <label for="composerRatio">Khung hình</label>
+              <select id="composerRatio"></select>
+            </div>
+            <div class="composer-field">
+              <label for="composerModel">Mô hình</label>
+              <select id="composerModel"></select>
+            </div>
+          </div>
+
+          <div class="row-inline composer-attach">
+            <button id="composerPickImages" type="button">Gắn ảnh tham chiếu…</button>
+            <input id="composerImages" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
+            <button id="composerClearImages" type="button">Bỏ hết ảnh</button>
+            <span id="composerImageInfo" class="dialog-hint">Chưa gắn ảnh nào.</span>
+          </div>
+          <div id="composerImageList" class="composer-thumbs"></div>
         </div>
-        <div class="composer-field">
-          <label for="composerRatio">Khung hình</label>
-          <select id="composerRatio"></select>
+
+        <div class="composer-col">
+          <h3>Lấy video từ hội thoại cũ</h3>
+          <div class="row-inline">
+            <select id="composerConversation" style="flex: 1;"></select>
+            <button id="composerLoadConvos" type="button">Nạp danh sách</button>
+            <button id="composerGetVideos" type="button" class="primary">Lấy video</button>
+          </div>
+          <div id="composerGetStatus" class="dialog-hint">Chọn hội thoại trong lịch sử, bấm Lấy video là tải hết video trong đó về thư mục outputs.</div>
+
+          <hr class="composer-sep" />
+          <div class="row-inline composer-taskbar">
+            <button id="composerCancel" type="button">Hủy việc đang chạy</button>
+            <button id="composerNewTask" type="button">Tạo việc mới</button>
+            <span id="composerTaskInfo" class="dialog-hint"></span>
+          </div>
+
+          <div id="composerStatus" class="dialog-hint">Sẵn sàng.</div>
+          <div id="composerJobs" class="composer-jobs"></div>
+          <div id="composerResult" class="composer-result" hidden></div>
         </div>
-        <div class="composer-field">
-          <label for="composerModel">Mô hình</label>
-          <select id="composerModel"></select>
-        </div>
       </div>
-
-      <div class="row-inline composer-attach">
-        <button id="composerPickImages" type="button">Gắn ảnh tham chiếu…</button>
-        <input id="composerImages" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
-        <button id="composerClearImages" type="button">Bỏ hết ảnh</button>
-        <span id="composerImageInfo" class="dialog-hint">Chưa gắn ảnh nào.</span>
-      </div>
-      <div id="composerImageList" class="composer-thumbs"></div>
-
-      <hr class="composer-sep" />
-      <h3>Lấy video từ hội thoại cũ</h3>
-      <div class="row-inline">
-        <select id="composerConversation" style="flex: 1;"></select>
-        <button id="composerLoadConvos" type="button">Nạp danh sách</button>
-        <button id="composerGetVideos" type="button" class="primary">Lấy video</button>
-      </div>
-      <div id="composerGetStatus" class="dialog-hint">Chọn hội thoại trong lịch sử, bấm Lấy video là tải hết video trong đó về thư mục outputs.</div>
-
-      <div class="row-inline composer-taskbar">
-        <button id="composerCancel" type="button">Hủy việc đang chạy</button>
-        <button id="composerNewTask" type="button">Tạo việc mới</button>
-        <span id="composerTaskInfo" class="dialog-hint"></span>
-      </div>
-
-      <div id="composerStatus" class="dialog-hint">Sẵn sàng.</div>
-      <div id="composerJobs" class="composer-jobs"></div>
-      <div id="composerResult" class="composer-result" hidden></div>
 
       <div class="dialog-actions">
         <button id="composerClose" type="button">Đóng</button>

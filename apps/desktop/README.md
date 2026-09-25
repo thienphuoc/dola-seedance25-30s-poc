@@ -33,6 +33,11 @@ Trên đó có đủ một vòng việc:
 
 Ghi chú kỹ thuật:
 
+- **Popup "Tạo video"**: rộng `min(1180px, 94vw)`, cao tối đa `100vh - 32px`, chia hai cột
+  (mô tả + số giây/khung hình/mô hình + ảnh ở bên trái; lấy video hội thoại cũ + việc đang
+  chạy + danh sách việc + kết quả ở bên phải). Phần thân tự cuộn, hàng nút
+  `Đóng / Mở thư mục video / Gửi` là chân trang cố định nên luôn bấm được; dưới 900px tự
+  dồn về một cột. Danh sách việc và ảnh thu nhỏ cũng tự cuộn trong khung của nó.
 - **Nút "Bật lựa chọn 30 giây"** (có cả trong cửa sổ ứng dụng và trên bàn điều khiển web):
   bấm một lần là trang Dola của tài khoản đó tự có thêm lựa chọn `5s/10s/15s/30s` trong ô
   chọn số giây — dùng được cả khi anh tự thao tác tay trong ứng dụng. Nút này chỉ sửa
@@ -49,6 +54,24 @@ Ghi chú kỹ thuật:
   `POST /api/accounts/:id/check`, `POST /api/accounts/:id/probe` (kiểm tra miễn phí xem
   bảng chọn đã có số giây chưa), `POST /api/uploads`, `POST /api/jobs`, `GET /api/jobs`,
   `POST /api/jobs/:id/cancel`, `GET /api/media/:jobId/(unwatermarked|client)`.
+- **Chạy song song nhiều tài khoản**: khoá "đang có việc chạy" tính **theo từng tài khoản**,
+  không phải toàn ứng dụng. Tài khoản 1 đang vẽ thì vẫn gửi được việc ở tài khoản 2, và
+  ngược lại. Lý do: mỗi tài khoản đã có khung Dola, Chromium partition và cửa sổ ẩn riêng,
+  nên chúng không dùng chung tài nguyên nào. Trong cùng một tài khoản thì vẫn chặn — hai việc
+  trên một tài khoản sẽ giành nhau cùng một trang Dola và cùng bộ đệm hội thoại.
+  "Lấy video từ hội thoại cũ" và "cứu kết quả" cũng theo luật đó: nó xoá và nạp lại bộ đệm
+  hội thoại của tài khoản, nên bị chặn khi chính tài khoản đó đang chạy việc, nhưng vẫn chạy
+  được trên tài khoản khác. Bấm dừng một việc thì tài khoản đó được giải phóng ngay, không
+  phải chờ vòng lặp theo dõi thức dậy.
+- **Khung Dola của tài khoản không được chọn vẫn chạy hết nhịp**: webview đặt
+  `backgroundThrottling=false`. Không có dòng đó, Chromium bóp hẹn giờ của trang bị ẩn (và cả
+  trang đang mở khi cửa sổ ứng dụng mất tiêu điểm) xuống còn ~1 giây/lần — đo được chỉ 3–5
+  nhịp thay vì 60 trong 3 giây, chậm 20 lần.
+- Cần soi giao diện thì chạy `SEEDANCE_DEBUG_PORT=9333 npm start`; cổng gỡ lỗi chỉ mở trên
+  127.0.0.1, dùng để chụp/đo bố cục popup bằng CDP (`user-data/shot-composer.cjs`). Hai phép
+  thử cho tính năng chạy song song: `user-data/check-parallel-accounts.cjs` (chạy bằng node
+  thường, không cần Electron, không gửi gì) và `user-data/check-parallel-live.cjs` (cần cổng
+  gỡ lỗi, đo cả nhịp hẹn giờ và nút Gửi).
 
 ## 当前已实现
 

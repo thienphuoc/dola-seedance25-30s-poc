@@ -19,6 +19,12 @@ const views = new Map();
 let accounts = [];
 let activeId = '';
 
+// Trạng thái popup "Tạo video". Khai báo ở đây vì setActiveAccount() chạy ngay lúc dựng
+// danh sách tài khoản, trước khi các phần tử của popup kịp có trong DOM.
+let composerBound = false;        // popup đã dựng xong phần tử chưa
+let composerBoundAccountId = '';  // popup đang bám theo tài khoản nào
+let composerSending = false;      // đang chờ máy chủ trả về việc vừa gửi
+
 function accountById(id) {
   return accounts.find(item => item.id === id) || null;
 }
@@ -34,7 +40,14 @@ function ensureWebview(account) {
   webview.src = 'https://www.dola.com/chat/';
   webview.partition = account.partition;
   webview.setAttribute('allowpopups', '');
-  webview.setAttribute('webpreferences', 'contextIsolation=yes');
+  // backgroundThrottling=false: tài khoản không được chọn bị ẩn bằng display:none, mà
+  // trang ẩn thì Chromium bóp timer xuống ~1 giây/lần. Việc chạy nền của tài khoản đó
+  // cần trang còn phản hồi bình thường nên phải tắt bóp.
+  // backgroundThrottling=false: cửa sổ ứng dụng mất tiêu điểm (đang gõ ở cửa sổ khác)
+  // hoặc tài khoản không được chọn bị ẩn bằng display:none thì Chromium bóp timer xuống
+  // ~1 giây/lần — đo được chỉ 3-5 nhịp thay vì 60 trong 3 giây, tức chậm 20 lần. Việc
+  // chạy nền phải giữ nguyên nhịp trang.
+  webview.setAttribute('webpreferences', 'contextIsolation=yes, backgroundThrottling=false');
 
   webview.addEventListener('did-start-loading', () => {
     if (activeId === account.id) statusEl.textContent = 'Đang tải trang Dola…';
@@ -86,6 +99,15 @@ function setActiveAccount(id) {
   importCookiesButton.disabled = false;
   enableDurationButton.disabled = false;
   document.getElementById('openComposer').disabled = false;
+
+  // Đổi tài khoản thì popup theo tài khoản mới ngay, không đợi nhịp hỏi lại 5 giây:
+  // nút Gửi đang khoá vì tài khoản trước đang chạy sẽ khoá nhầm tài khoản này.
+  if (composerBound && composerBoundAccountId !== account.id) {
+    composerBoundAccountId = account.id;
+    composerAccountEl.textContent = `Tài khoản đang chọn: ${account.name}`;
+    setComposerStatus('Sẵn sàng.');
+    refreshComposerJob().catch(() => {});
+  }
 }
 
 function renderAccounts() {
@@ -303,6 +325,9 @@ let composerPollTimer = null;
 let composerCurrentJobId = null;
 let composerDefaultsLoaded = false;
 
+// Từ đây popup đã có đủ phần tử, setActiveAccount() được phép chạm vào.
+composerBound = true;
+
 function fillComposerOptions(defaults) {
   if (composerDefaultsLoaded) return;
   const durations = (defaults && defaults.durations) || [5, 10, 15, 30];
@@ -398,7 +423,11 @@ function renderComposerJob(job) {
     needs_login: 'Cần đăng nhập',
     canceled: 'Đã dừng'
   };
-  setComposerStatus(`${STATUS_TEXT[job.status] || job.status}: ${job.message || ''}`);
+  const label = STATUS_TEXT[job.status] || job.status;
+  const detail = String(job.message || '');
+  // Nhiều trạng thái đã tự mở đầu bằng chính nhãn của nó, tránh lặp "Xong: Xong:"
+  const alreadyLabelled = detail.toLowerCase().startsWith(label.toLowerCase() + ':');
+  setComposerStatus(alreadyLabelled ? detail : `${label}: ${detail}`.trim());
   if (job.status === 'completed' && job.media && job.media.unwatermarked) {
     const seconds = job.media.durationSeconds || job.media.reportedDuration;
     composerResultEl.hidden = false;
@@ -431,6 +460,7 @@ async function openComposer() {
   const defaults = window.seedanceDesktop.videoDefaults ? await window.seedanceDesktop.videoDefaults() : null;
   fillComposerOptions(defaults);
   composerAccountEl.textContent = `Tài khoản đang chọn: ${account.name}`;
+  composerBoundAccountId = account.id;
   composerBackdrop.hidden = false;
   composerStatusEl.textContent = 'Sẵn sàng.';
   composerPromptEl.focus();
@@ -442,6 +472,7 @@ function closeComposer() {
   composerBackdrop.hidden = true;
   clearInterval(composerPollTimer);
   composerPollTimer = null;
+  composerBoundAccountId = '';
 }
 
 async function sendComposerJob() {
@@ -449,6 +480,7 @@ async function sendComposerJob() {
   if (!account) return;
   const prompt = composerPromptEl.value.trim();
   if (!prompt) { setComposerStatus('Chưa có đoạn mô tả.'); return; }
+  composerSending = true;
   composerSendButton.disabled = true;
   setComposerStatus('Đang gửi việc…');
   try {
@@ -465,6 +497,8 @@ async function sendComposerJob() {
   } catch (error) {
     setComposerStatus(`Không gửi được: ${String((error && error.message) || error)}`);
     composerSendButton.disabled = false;
+  } finally {
+    composerSending = false;
   }
 }
 
@@ -622,6 +656,11 @@ async function refreshComposerJob() {
     renderComposerJob(newest);
   } else {
     composerCurrentJobId = null;
+    // Tài khoản này không có việc nào thì nút Gửi phải mở lại. Thiếu bước này, nút giữ
+    // nguyên trạng thái khoá của tài khoản vừa xem trước đó và không gửi được sang nơi khác.
+    composerResultEl.hidden = true;
+    composerOpenFolderButton.disabled = true;
+    if (!composerSending) composerSendButton.disabled = false;
   }
 }
 
